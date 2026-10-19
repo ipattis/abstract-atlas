@@ -6,7 +6,9 @@ topics, trends over time, and a structured record for every paper that says *wha
 It is a generalised, runnable version of the method behind two projects:
 
 - **NeurIPS maps**: all 19,493 accepted NeurIPS 2024-2026 papers, mapped three ways (topic, problem, method).
+  Live: <https://ipattis.github.io/neurIPS/> · code: [ipattis/neurIPS](https://github.com/ipattis/neurIPS)
 - **SCALE maps**: 1,652 papers on AI in education, each tagged with an evidence profile.
+  Live: <https://ipattis.github.io/SCALE_research/> (evidence page: <https://ipattis.github.io/SCALE_research/evidence.html>) · code: [ipattis/SCALE_research](https://github.com/ipattis/SCALE_research)
 
 The same pipeline runs **locally** (Ollama, llama.cpp, vLLM, LM Studio: anything OpenAI-compatible) or as a
 **batch job on AWS Bedrock** (Claude, about half the on-demand price). Swap with one line of config.
