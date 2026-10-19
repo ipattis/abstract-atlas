@@ -1,0 +1,98 @@
+# Evidence-profile extraction for empirical research (here: AI in education). This is the schema behind the
+# SCALE AI Hub map: besides summaries, the model records *what kind of evidence* each abstract reports, and a
+# fixed rule turns that into an evidence tier. Adapt the enums to your field (clinical trials, economics, ...).
+name: education_evidence
+corpus_description: research on AI in education
+workdir: ../runs/education_evidence
+
+input: {path: ../data/my_education_abstracts.csv, id: id, title: title, abstract: abstract, year: year}
+
+extraction:
+  prompt_version: 2
+  instructions: >
+    You are helping build an explorable map of research on AI in education for teachers, school leaders and
+    researchers. Use ONLY the title and abstract. Do not invent results, numbers, countries or tools; prefer
+    "Not stated" or an empty list over a guess.
+  prompt: |
+    Read the paper below and record your analysis with the tool.
+
+    Title: {title}
+
+    Venue: {venue}
+
+    Abstract: {abstract}
+  fields:
+    - {name: summary, type: text, description: "2 sentences: what the study does and finds."}
+    - {name: problem, type: text, description: "1-2 sentences: the educational problem or need addressed."}
+    - {name: method, type: text, description: "1-2 sentences: how AI is used or studied, and how the study is done."}
+    - {name: plain_language, type: text, description: "For a parent or teacher: 2-3 short sentences, no jargon."}
+    - {name: key_finding, type: text, description: "The main result exactly as the abstract reports it, keeping numbers. If none: 'The abstract reports no results.'"}
+    - name: takeaway
+      type: text
+      description: >
+        1 sentence an educator could take from this. Stay strictly within the findings and their stated context:
+        nothing stronger, broader or more specific than the abstract. Prefer 'This study suggests...' over
+        imperatives. If nothing is supported: 'No practical takeaway stated.'
+    - name: study_type
+      type: enum
+      audit: label
+      options:
+        - Randomized controlled trial
+        - Quasi-experimental (comparison group, not randomized)
+        - Pre-post, single group
+        - Correlational / survey
+        - Descriptive analysis of usage or interaction data
+        - Qualitative / case study
+        - Design / product development
+        - Technical evaluation of AI (no learner outcomes)
+        - Systematic review / meta-analysis
+        - Other review / conceptual / position
+        - Unclear from abstract
+      description: >
+        The design the abstract describes. RCT: random assignment is stated or clearly implied. Pre-post: the same
+        group measured before AND after; a post-only survey is Correlational / survey. Logs or chats analysed without a
+        comparison group: Descriptive analysis of usage. A pilot of a new tool: Design / product development. Only
+        reviews with a stated systematic search are Systematic review.
+    - name: outcomes
+      type: enum_list
+      options: [Learning / achievement, Behaviour / engagement, Perceptions / attitudes, Teacher practice / workload, AI output quality / accuracy, None reported]
+      description: "Every kind of outcome measured. 'Learning / achievement' only for measured learning (tests, grades), not self-reported learning."
+    - {name: direction, type: enum, audit: label, options: [Positive, Mixed, No effect, Negative, Not applicable], description: "Direction of the main reported effect. 'Not applicable' for reviews, designs, technical evaluations."}
+    - {name: sample_size, type: int, audit: label, description: "Number of HUMAN participants if stated, else 0. Not messages, records, papers or institutions."}
+    - {name: data_size, type: text, description: "Non-participant data analysed, as stated (e.g. '65 papers'), or 'Not stated'."}
+    - {name: countries, type: list, description: "Countries where the study took place, as stated. Empty if not stated. Never guess from author names."}
+    - {name: ai_tools, type: list, description: "Named AI products or models (e.g. 'ChatGPT'). Not benchmarks or frameworks. Empty if none."}
+    - {name: generative_ai, type: bool, description: "Whether the AI studied is generative AI / an LLM."}
+    - {name: tags, type: list, description: "3-5 short lowercase topic tags."}
+
+derived:
+  evidence_tier:     # first match wins; edit the rule, not the model
+    default: Unclear
+    rules:
+      - {if: {study_type: {startswith: [Randomized, Quasi]}, outcomes: {contains: Learning / achievement}}, then: Causal evidence on learning}
+      - {if: {study_type: {startswith: [Randomized, Quasi]}}, then: "Causal evidence, other outcomes"}
+      - {if: {study_type: {in: ["Pre-post, single group", "Correlational / survey", "Descriptive analysis of usage or interaction data"]}}, then: Correlational / pre-post}
+      - {if: {study_type: {in: [Qualitative / case study, Design / product development]}}, then: Qualitative / design}
+      - {if: {study_type: Technical evaluation of AI (no learner outcomes)}, then: Technical evaluation of AI}
+      - {if: {study_type: Systematic review / meta-analysis}, then: Evidence synthesis}
+      - {if: {study_type: Other review / conceptual / position}, then: Conceptual / commentary}
+
+views:
+  topic:   {title: By topic, text: "{title}. {abstract}", instruction: Identify the research topic of this paper on AI in education, naming: {objects: paper titles and abstracts, corpus: research papers on AI in education}}
+  problem: {title: By need,  text: "{problem}", instruction: Identify the educational problem or need this paper addresses, naming: {objects: educational problem statements, corpus: educational problems addressed by research}}
+  method:  {title: By AI use, text: "{method}", instruction: Identify how AI is used or studied in this education research paper, naming: {objects: descriptions of how AI is used and studied, corpus: uses of AI studied in education research}}
+
+embedding: {model: Qwen/Qwen3-Embedding-4B}
+topics: {min_clusters: 5, max_clusters: 120, max_layers: 3, base_min_cluster_size: 5}
+trends: {pool_through: 2023, min_latest: 6}
+audit:
+  guidance: >
+    sample_size counts HUMAN participants only; 0 means "not stated" and is correct when the abstract gives no count
+    of people. The takeaway must not recommend more than the findings support.
+map: {title: AI in education, hover_fields: [key_finding], meta_fields: [study_type]}
+
+backends:
+  bedrock_batch: {type: bedrock-batch, model: us.anthropic.claude-sonnet-4-6, region: us-east-1}
+  bedrock: {type: bedrock, model: us.anthropic.claude-sonnet-4-6, region: us-east-1}
+  local: {type: local, base_url: "http://localhost:11434/v1", model: qwen3:14b, workers: 2}
+use: {default: bedrock_batch, naming: bedrock}

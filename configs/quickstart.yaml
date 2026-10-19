@@ -1,0 +1,92 @@
+# Smallest useful config: a general-purpose extraction schema for any set of research abstracts.
+# Copy this file, point `input` at your own table, and edit the fields to match what you want to know.
+name: quickstart
+corpus_description: research papers on machine learning for weather and climate
+workdir: ../runs/quickstart
+
+input:
+  path: ../examples/synthetic_abstracts.csv   # csv / json / jsonl / parquet
+  id: id
+  title: title
+  abstract: abstract
+  year: year            # optional; enables trends
+
+extraction:
+  prompt_version: 1     # bump when you change a field's prompt, then `atlas enrich --refresh-fields <field>`
+  instructions: >
+    You are helping build an explorable map of research for researchers. Use ONLY the title and abstract.
+    Do not invent results, numbers or names. When the abstract does not say, answer "Not stated" (text) or
+    use the "unclear" option (enums).
+  fields:
+    - {name: summary, type: text, description: "2 sentences: what the paper does and finds."}
+    - {name: problem, type: text, description: "1-2 sentences: the problem or question the paper addresses."}
+    - {name: method, type: text, description: "1-2 sentences: the technique or approach used."}
+    - {name: plain_language, type: text, description: "2-3 short sentences for a smart non-specialist, no jargon."}
+    - {name: key_finding, type: text, description: "The main result as the abstract reports it, keeping numbers. If none: 'The abstract reports no results.'"}
+    - name: contribution
+      type: enum
+      options: [new method, empirical study, benchmark or dataset, survey or review, theory, system or tool, position or commentary, unclear]
+      description: "The paper's main contribution."
+      audit: label
+    - {name: tags, type: list, description: "3-5 short lowercase topic tags."}
+
+# Rule-derived labels: transparent and free to change (no new LLM calls).
+derived:
+  has_results:
+    default: "No results stated"
+    rules:
+      - if: {key_finding: {startswith: "The abstract reports no results"}}
+        then: "No results stated"
+      - if: {contribution: {in: [new method, empirical study, benchmark or dataset, system or tool]}}
+        then: "Reports results"
+
+# Each view embeds a different text with a different instruction, giving a different map of the same papers.
+views:
+  topic:
+    title: By topic
+    text: "{title}. {abstract}"
+    instruction: Identify the research topic of this paper
+    naming: {objects: paper titles and abstracts, corpus: research papers on machine learning for weather and climate}
+  problem:
+    title: By problem
+    text: "{problem}"
+    instruction: Identify the problem this paper addresses
+    naming: {objects: problem statements, corpus: problems addressed by research papers}
+  method:
+    title: By method
+    text: "{method}"
+    instruction: Identify the technique this paper uses
+    naming: {objects: descriptions of methods, corpus: methods used in research papers}
+
+embedding:
+  model: Qwen/Qwen3-Embedding-0.6B     # 4B (the default) gives better maps if you have ~10 GB of GPU/unified memory
+  batch_size: 16
+
+topics: {min_clusters: 4, max_clusters: 60, max_layers: 3, base_min_cluster_size: 4}
+trends: {pool_through: null, min_latest: 4}
+map:
+  title: Quickstart atlas
+  hover_fields: [summary]
+  meta_fields: [contribution]
+
+# ---- Where the LLM runs. Pick one per role under `use:`; swap without touching anything else. -------------
+backends:
+  local:                      # Ollama / llama.cpp / vLLM / LM Studio: anything OpenAI-compatible
+    type: local
+    base_url: http://localhost:11434/v1
+    model: qwen3:14b          # whatever tag your server has pulled (a 7-14B instruct model is a good start)
+    workers: 2
+  bedrock_batch:              # ~50% cheaper than on-demand, results in minutes to hours
+    type: bedrock-batch
+    model: us.anthropic.claude-sonnet-4-6
+    region: us-east-1
+  bedrock:                    # on-demand: for small jobs and for steps batch can't do
+    type: bedrock
+    model: us.anthropic.claude-sonnet-4-6
+    region: us-east-1
+use:
+  default: local
+  # Mix and match, e.g. batch for the big jobs and a stronger on-demand model for naming:
+  # extract: bedrock_batch
+  # audit: bedrock_batch
+  # naming: bedrock

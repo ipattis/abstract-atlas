@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "abstract-atlas"
+version = "0.1.0"
+description = "Turn a pile of research abstracts into an audited, explorable map: structured LLM extraction, rule-derived labels, multi-view embeddings, trends."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = ["pandas>=2", "pyarrow", "numpy", "pyyaml", "requests", "tqdm"]
+
+[project.optional-dependencies]
+aws = ["boto3", "anthropic[bedrock]>=0.50"]
+claude = ["anthropic>=0.50"]
+embed = ["sentence-transformers>=3", "torch"]
+map = ["umap-learn>=0.5.9", "evoc>=0.3", "toponymy>=0.5", "datamapplot>=0.7", "scikit-learn"]
+all = ["abstract-atlas[aws,embed,map]"]
+dev = ["pytest"]
+
+[project.scripts]
+atlas = "abstract_atlas.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

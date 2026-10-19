@@ -1,0 +1,37 @@
+# Conference-proceedings variant (the NeurIPS maps): summary / problem / method / ELI5 / contribution / tags,
+# three views, trends by year. A good template for any venue where papers are broadly comparable.
+name: ml_conference
+corpus_description: machine learning conference papers
+workdir: ../runs/ml_conference
+
+input: {path: ../data/proceedings.parquet, id: id, title: title, abstract: abstract, year: year}
+
+extraction:
+  prompt_version: 2
+  instructions: >
+    You are helping build an explorable map of machine learning papers. Use ONLY the title and abstract. Do not
+    invent results or numbers. Applications must be uses the abstract itself names or clearly implies; if none, write
+    "Not stated" (the first audit of this field found ~20% invented use cases until the prompt said so).
+  fields:
+    - {name: summary, type: text, description: "2 sentences."}
+    - {name: problem, type: text, description: "1-2 sentences: the problem being solved."}
+    - {name: method, type: text, description: "1-2 sentences: the technique used."}
+    - {name: eli5, type: text, description: "Explain like I'm five: 2-3 short sentences, no jargon."}
+    - {name: applications, type: text, description: "Real-world uses the abstract names or clearly implies, else 'Not stated'."}
+    - {name: contribution, type: enum, audit: label, options: [new method, theory, empirical study, benchmark or dataset, system or tool, survey or position, unclear]}
+    - {name: tags, type: list, description: "3-5 short lowercase tags."}
+
+views:
+  topic:   {title: By topic,   text: "{title}. {abstract}", instruction: Identify the research topic of this machine learning paper}
+  problem: {title: By problem, text: "{problem}",           instruction: Identify the problem this machine learning paper is trying to solve}
+  method:  {title: By method,  text: "{method}",            instruction: Identify the technique this machine learning paper uses}
+
+embedding: {model: Qwen/Qwen3-Embedding-4B}
+topics: {min_clusters: 6, max_clusters: 400, max_layers: 4, base_min_cluster_size: 10}
+trends: {pool_through: null, min_latest: 15}
+map: {title: ML conference papers, hover_fields: [summary], meta_fields: [contribution]}
+
+backends:
+  bedrock_batch: {type: bedrock-batch, model: us.anthropic.claude-sonnet-4-6, region: us-east-1}
+  bedrock: {type: bedrock, model: us.anthropic.claude-sonnet-4-6, region: us-east-1}
+use: {default: bedrock_batch, naming: bedrock}
